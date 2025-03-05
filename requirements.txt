@@ -1,0 +1,11 @@
+torchaudio==2.6
+munch
+torch==2.6
+pyyaml
+librosa
+scipy
+einops
+einops_exts
+transformers
+numpy<2
+huggingface_hub
