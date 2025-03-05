@@ -13,9 +13,9 @@ from transformers import AlbertConfig, AlbertModel
 
 from huggingface_hub import hf_hub_download
 
-from Modules.diffusion.sampler import KDiffusion, LogNormalDistribution, DiffusionSampler, ADPM2Sampler, KarrasSchedule
-from Modules.diffusion.modules import Transformer1d, StyleTransformer1d, AdaLayerNorm
-from Modules.diffusion.diffusion import AudioDiffusionConditional
+from styletts2_inference.Modules.diffusion.sampler import KDiffusion, LogNormalDistribution, DiffusionSampler, ADPM2Sampler, KarrasSchedule
+from styletts2_inference.Modules.diffusion.modules import Transformer1d, StyleTransformer1d, AdaLayerNorm
+from styletts2_inference.Modules.diffusion.diffusion import AudioDiffusionConditional
 
 from munch import Munch
 
