@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+
+[project]
+name = "styletts2-inference"
+version= "1.0"
+authors = [
+    {name = "Serhiy Stetskovych", email = "patriotyk@gmail.com"},
+]
+description = "Styletts2 inference code, onnx compatible"
+readme = "README.md"
+requires-python = ">=3.8"
+keywords = ["tts", "text-to-speech", "styletts2", "onnx"]
+license = {text = "MIT"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
+
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
+
+
+[project.urls]
+"Homepage" = "https://github.com/patriotyk/styletts2-inference"
+"Bug Tracker" = "https://github.com/patriotyk/styletts2-inference/issues"
