@@ -45,17 +45,6 @@ def get_default_model_kwargs():
     )
 
 
-def get_default_sampling_kwargs():
-    return dict(sigma_schedule=LinearSchedule(), sampler=VSampler(), clamp=True)
-
-
-class AudioDiffusionModel(Model1d):
-    def __init__(self, **kwargs):
-        super().__init__(**{**get_default_model_kwargs(), **kwargs})
-
-    def sample(self, *args, **kwargs):
-        return super().sample(*args, **{**get_default_sampling_kwargs(), **kwargs})
-
 
 class AudioDiffusionConditional(Model1d):
     def __init__(
@@ -78,10 +67,5 @@ class AudioDiffusionConditional(Model1d):
         default_kwargs = dict(embedding_mask_proba=self.embedding_mask_proba)
         return super().forward(*args, **{**default_kwargs, **kwargs})
 
-    def sample(self, *args, **kwargs):
-        default_kwargs = dict(
-            **get_default_sampling_kwargs(),
-            embedding_scale=5.0,
-        )
-        return super().sample(*args, **{**default_kwargs, **kwargs})
+
 

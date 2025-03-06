@@ -13,9 +13,9 @@ from transformers import AlbertConfig, AlbertModel
 
 from huggingface_hub import hf_hub_download
 
-from styletts2_inference.Modules.diffusion.sampler import KDiffusion, LogNormalDistribution, DiffusionSampler, ADPM2Sampler, KarrasSchedule
-from styletts2_inference.Modules.diffusion.modules import Transformer1d, StyleTransformer1d, AdaLayerNorm
-from styletts2_inference.Modules.diffusion.diffusion import AudioDiffusionConditional
+from .Modules.diffusion.sampler import KDiffusion, LogNormalDistribution, DiffusionSampler, ADPM2Sampler, KarrasSchedule
+from .Modules.diffusion.modules import Transformer1d, StyleTransformer1d, AdaLayerNorm
+from .Modules.diffusion.diffusion import AudioDiffusionConditional
 
 from munch import Munch
 
@@ -475,7 +475,7 @@ class StyleTTS2(nn.Module):
         
         params = self.config.model_params
         if params.decoder.type == "istftnet":
-            from Modules.istftnet import Decoder
+            from .Modules.istftnet import Decoder
             self.add_module('decoder', Decoder(dim_in=params.hidden_dim, style_dim=params.style_dim, dim_out=params.n_mels,
                     resblock_kernel_sizes = params.decoder.resblock_kernel_sizes,
                     upsample_rates = params.decoder.upsample_rates,
@@ -484,7 +484,7 @@ class StyleTTS2(nn.Module):
                     upsample_kernel_sizes=params.decoder.upsample_kernel_sizes, 
                     gen_istft_n_fft=params.decoder.gen_istft_n_fft, gen_istft_hop_size=params.decoder.gen_istft_hop_size))
         else:
-            from Modules.hifigan import Decoder
+            from .Modules.hifigan import Decoder
             self.add_module('decoder', Decoder(dim_in=params.hidden_dim, style_dim=params.style_dim, dim_out=params.n_mels,
                     resblock_kernel_sizes = params.decoder.resblock_kernel_sizes,
                     upsample_rates = params.decoder.upsample_rates,
