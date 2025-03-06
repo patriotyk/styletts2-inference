@@ -201,7 +201,7 @@ class TextEncoder(nn.Module):
             
         x = x.transpose(1, 2)  # [B, T, chn]
 
-        input_lengths = input_lengths
+        input_lengths = input_lengths.cpu()
         x = nn.utils.rnn.pack_padded_sequence(
             x, input_lengths, batch_first=True, enforce_sorted=False)
 
@@ -413,7 +413,7 @@ class DurationEncoder(nn.Module):
         x.masked_fill_(masks.unsqueeze(-1).transpose(0, 1), 0.0)
                 
         x = x.transpose(0, 1)
-        input_lengths = text_lengths.clone()
+        input_lengths = text_lengths.cpu()
         x = x.transpose(2, 1)
         
         for block in self.lstms:
@@ -536,6 +536,7 @@ class StyleTTS2(nn.Module):
         self.add_module('sampler', sampler)
         self.load_state_dict(self.weights)
         self.eval()
+        self.to(self.device)
 
 
     def _load_state_dict(self, model, params):
@@ -550,7 +551,6 @@ class StyleTTS2(nn.Module):
                 new_state_dict[name] = v
 
             model.load_state_dict(new_state_dict, strict=False)
-            model.to(self.device)
     
     
     def load_state_dict(self, params):
@@ -568,7 +568,7 @@ class StyleTTS2(nn.Module):
 
     
     def preprocess(self, wave):
-        wave_tensor = torch.from_numpy(wave).float()
+        wave_tensor = torch.from_numpy(wave).float().to(self.device)
         mel_tensor = self.to_mel(wave_tensor)
         mel_tensor = (torch.log(1e-5 + mel_tensor.unsqueeze(0)) - self.mean) / self.std
         return mel_tensor.unsqueeze(1)
@@ -579,7 +579,7 @@ class StyleTTS2(nn.Module):
         audio, _ = librosa.effects.trim(wave, top_db=30)
         if sr != 24000:
             audio = librosa.resample(audio, sr, 24000)
-        mel_tensor = self.preprocess(audio).to(self.device)
+        mel_tensor = self.preprocess(audio)
 
         with torch.no_grad():
             ref_s = self.style_encoder(mel_tensor)
@@ -613,7 +613,7 @@ class StyleTTS2(nn.Module):
     
     
     def forward(self, tokens, voice=None, speed = 1.0, alpha=0.0,  beta=0.0, embedding_scale=1.0, diffusion_steps=10, s_prev=torch.zeros(1,256)):
-        
+        s_prev = s_prev.to(self.device)
         tokens = tokens.to(self.device)
         tokens = torch.cat([torch.LongTensor([0]).to(self.device),tokens], axis=0)
         tokens = tokens.unsqueeze(0)
