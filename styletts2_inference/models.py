@@ -550,6 +550,7 @@ class StyleTTS2(nn.Module):
                 new_state_dict[name] = v
 
             model.load_state_dict(new_state_dict, strict=False)
+            model.to(self.device)
     
     
     def load_state_dict(self, params):
