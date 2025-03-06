@@ -1,6 +1,6 @@
-torchaudio==2.6
+torchaudio
 munch
-torch==2.6
+torch
 pyyaml
 librosa
 scipy
