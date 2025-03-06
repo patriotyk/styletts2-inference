@@ -615,7 +615,7 @@ class StyleTTS2(nn.Module):
     def forward(self, tokens, voice=None, speed = 1.0, alpha=0.0,  beta=0.0, embedding_scale=1.0, diffusion_steps=10, s_prev=torch.zeros(1,256)):
         
         tokens = tokens.to(self.device)
-        tokens = torch.cat([torch.LongTensor([0]),tokens], axis=0)
+        tokens = torch.cat([torch.LongTensor([0]).to(self.device),tokens], axis=0)
         tokens = tokens.unsqueeze(0)
         with torch.no_grad():
             if self.noise is None or s_prev[0][0] == 0:
