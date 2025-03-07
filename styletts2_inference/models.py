@@ -464,6 +464,8 @@ class StyleTTS2(nn.Module):
 
         self.config = recursive_munch(yaml.safe_load(open(config_path)))
         self.weights = torch.load(weights_path, map_location='cpu', weights_only=True)
+        if 'net' in self.weights:
+            self.weights = self.weights['net']
 
         self.to_mel = torchaudio.transforms.MelSpectrogram(n_mels=80, n_fft=2048, win_length=1200, hop_length=300)
         self.mean = self.config.model_params.diffusion.dist.mean
