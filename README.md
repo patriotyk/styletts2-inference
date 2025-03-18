@@ -42,7 +42,7 @@ ps = global_phonemizer.phonemize([text])
 ps = ' '.join(word_tokenize(ps[0]))
 
 styletts2_session = onnxruntime.InferenceSession("styletts.onnx")
-tokenizer = StyleTTS2Tokenizer(hf_path='patriotyk/StyleTTS2-LibriTTS')
+tokenizer = StyleTTS2Tokenizer(hf_path='patriotyk/StyleTTS2-LJSpeech')
 
 
 wav, _ = styletts2_session.run(None, {'tokens': tokenizer.encode(ps).numpy(),
