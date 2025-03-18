@@ -453,6 +453,30 @@ class DurationEncoder(nn.Module):
         return mask
     
 
+class StyleTTS2Tokenizer():
+    def __init__(self, vocab=None, hf_path=None):
+        if hf_path:
+            config_path = hf_hub_download(repo_id=hf_path, filename="config.yml")
+            config = recursive_munch(yaml.safe_load(open(config_path)))
+            self.vocab = config.model_params.vocab
+        elif vocab:
+            self.vocab = vocab
+        else:
+            raise Exception('vocab or hf_path should be set')
+
+        self.vocab_dict = {}
+        for i in range(len((self.vocab))):
+            self.vocab_dict[self.vocab[i]] = i
+
+    def encode(self, ps):
+        indexes = []
+        keys = self.vocab_dict.keys()
+        for char in ps:
+            if char in keys:
+                indexes.append(self.vocab_dict[char])
+        return torch.LongTensor(indexes)
+
+
 class StyleTTS2(nn.Module):
     def __init__(self, hf_path = '', config_path='', weights_path = '', device=torch.device('cpu')):
         super().__init__()
@@ -463,6 +487,7 @@ class StyleTTS2(nn.Module):
             config_path = hf_hub_download(repo_id=hf_path, filename="config.yml")
 
         self.config = recursive_munch(yaml.safe_load(open(config_path)))
+        self.tokenizer = StyleTTS2Tokenizer(vocab=self.config.model_params.vocab)
         self.weights = torch.load(weights_path, map_location='cpu', weights_only=True)
         if 'net' in self.weights:
             self.weights = self.weights['net']
@@ -497,7 +522,7 @@ class StyleTTS2(nn.Module):
     
         self.add_module('predictor', ProsodyPredictor(style_dim=params.style_dim, d_hid=params.hidden_dim, nlayers=params.n_layer, max_dur=params.max_dur, dropout=params.dropout))
     
-        self.style_encoder = StyleEncoder(dim_in=params.dim_in, style_dim=params.style_dim, max_conv_dim=params.hidden_dim) # acoustic style encoder
+        self.add_module('style_encoder', StyleEncoder(dim_in=params.dim_in, style_dim=params.style_dim, max_conv_dim=params.hidden_dim)) # acoustic style encoder
         self.add_module('predictor_encoder', StyleEncoder(dim_in=params.dim_in, style_dim=params.style_dim, max_conv_dim=params.hidden_dim)) # prosodic style encoder
         if params.multispeaker:
             transformer = StyleTransformer1d(channels=params.style_dim*2, 
@@ -565,10 +590,8 @@ class StyleTTS2(nn.Module):
         self._load_state_dict(self.predictor_encoder, params['predictor_encoder'])
         self._load_state_dict(self.style_encoder, params['style_encoder'])
         #self._load_state_dict(self.sampler, params['sampler'])
-        #self.register_buffer("style", params['style'])
 
 
-    
     def preprocess(self, wave):
         wave_tensor = torch.from_numpy(wave).float().to(self.device)
         mel_tensor = self.to_mel(wave_tensor)
