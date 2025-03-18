@@ -14,7 +14,7 @@ LRELU_SLOPE = 0.1
 class AdaIN1d(nn.Module):
     def __init__(self, style_dim, num_features):
         super().__init__()
-        self.norm = nn.InstanceNorm1d(num_features, affine=False)
+        self.norm = nn.InstanceNorm1d(num_features, affine=True)
         self.fc = nn.Linear(style_dim, num_features*2)
 
     def forward(self, x, s):
