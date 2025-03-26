@@ -1,8 +1,8 @@
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
-from torch.nn import Conv1d, ConvTranspose1d, AvgPool1d, Conv2d
-from torch.nn.utils import weight_norm, remove_weight_norm, spectral_norm
+from torch.nn import Conv1d, ConvTranspose1d
+from torch.nn.utils import weight_norm
 from .utils import init_weights, get_padding
 
 import math
@@ -73,11 +73,6 @@ class AdaINResBlock1(torch.nn.Module):
             x = xt + x
         return x
 
-    def remove_weight_norm(self):
-        for l in self.convs1:
-            remove_weight_norm(l)
-        for l in self.convs2:
-            remove_weight_norm(l)
             
 class TorchSTFT(torch.nn.Module):
     def __init__(self, filter_length=800, hop_length=200, win_length=800, window='hann'):
@@ -503,14 +498,6 @@ class Generator(torch.nn.Module):
         phase = torch.sin(x[:, self.post_n_fft // 2 + 1:, :])
         return spec, phase
 
-    def remove_weight_norm(self):
-        print('Removing weight norm...')
-        for l in self.ups:
-            remove_weight_norm(l)
-        for l in self.resblocks:
-            l.remove_weight_norm()
-        remove_weight_norm(self.conv_pre)
-        remove_weight_norm(self.conv_post)
 
         
 class AdainResBlk1d(nn.Module):

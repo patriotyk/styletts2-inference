@@ -1,6 +1,5 @@
 import torch
 import argparse
-import onnx
 from pathlib import Path
 
 from styletts2_inference.models import StyleTTS2
@@ -11,47 +10,31 @@ def export(args):
         model = StyleTTS2(args.hf_path, device='cpu')
     else:
         model = StyleTTS2(config_path=args.config, weights_path=args.weights_path, device='cpu')
-    
-    
-    model_inputs = {"tokens": model.tokenizer.encode(args.text),
-                    "speed": torch.tensor(1.0, dtype=torch.float32),
-                    "alpha": torch.tensor(0.1, dtype=torch.float32),
-                    "beta": torch.tensor(0.1, dtype=torch.float32),
-                    "embedding_scale": torch.tensor(2.0, dtype=torch.float32),
-                    "diffusion_steps": torch.tensor(4, dtype=torch.int32),
-                    "s_prev": torch.zeros(1,256, dtype=torch.float32),
-                    }
-    input_names = ['tokens', 'speed', 'alpha',  'embedding_scale', 'diffusion_steps', 's_prev']
-
-
+    tokens = model.tokenizer.encode(args.text)
     if model.config.model_params.multispeaker:
-        model_inputs["voice"] = model.compute_style(args.audio_prompt)
-        input_names = ['tokens', 'voice', 'speed', 'alpha', 'beta', 'embedding_scale', 'diffusion_steps', 's_prev']
+        style = model.predict_style_multi(args.audio_prompt, tokens)
     else:
-        model_inputs["voice"] = None
-        model_inputs["beta"] = None
+        style = model.predict_style_single(tokens)
+    
+    model_inputs = {"tokens": tokens,
+                    "speed": torch.tensor(1.0, dtype=torch.float32),
+                    "s_prev": style
+                    }
+    input_names = ['tokens', 'speed', 's_prev']
 
 
-    torch.onnx.export(model, model_inputs,
+    torch.onnx.export(model, kwargs=model_inputs,
                             f='styletts.onnx', dynamo=False, export_params=True, report=False, verify=True,
                             input_names=input_names,
-                            output_names=["output_wav", "output_s_pred"],
+                            output_names=["output_wav"],
                             training=torch.onnx.TrainingMode.EVAL,
                             opset_version=19,
                             dynamic_axes={
                                 'tokens':{0: "seq_length"},
                                 'output_wav':{0: "seq_length"}
-                            })
-    
+                            }
+                    )
 
-    onnx_model = onnx.load('styletts.onnx')
-    for node in onnx_model.graph.node:
-        if node.op_type == "Transpose":
-            if node.name == "/text_encoder_1/Transpose_7" or node.name == "/text_encoder_1/Transpose_20" or node.name == "/text_encoder_1/Transpose_14":  
-                perm = list(node.attribute[0].ints)  
-                perm = [2 if i == -1 else i for i in perm]  
-                node.attribute[0].ints[:] = perm  
-    onnx.save(onnx_model, "styletts.onnx")
     print('Exported!!!')
 
 

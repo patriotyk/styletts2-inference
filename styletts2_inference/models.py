@@ -480,7 +480,7 @@ class StyleTTS2Tokenizer():
 class StyleTTS2(nn.Module):
     def __init__(self, hf_path = '', config_path='', weights_path = '', device=torch.device('cpu')):
         super().__init__()
-        self.noise = None
+        self.noise = torch.randn(1, 1, 256).to(device)
         self.device = device
         if hf_path:
             weights_path = hf_hub_download(repo_id=hf_path, filename="pytorch_model.bin")
@@ -599,7 +599,7 @@ class StyleTTS2(nn.Module):
         return mel_tensor.unsqueeze(1)
     
     
-    def compute_style(self, voice_audio):
+    def extract_voice_features(self, voice_audio):
         wave, sr = librosa.load(voice_audio, sr=24000)
         audio, _ = librosa.effects.trim(wave, top_db=30)
         if sr != 24000:
@@ -637,14 +637,45 @@ class StyleTTS2(nn.Module):
         return mask.float()
     
     
-    def forward(self, tokens, voice=None, speed = 1.0, alpha=0.0,  beta=0.0, embedding_scale=1.0, diffusion_steps=10, s_prev=torch.zeros(1,256)):
+    def predict_style_single(self, tokens, embedding_scale=1.0, diffusion_steps=10):
+        tokens = tokens.unsqueeze(0)
+        input_lengths = tokens.new_full((tokens.shape[0],), tokens.shape[1], dtype=torch.long)
+        mask = torch.arange(input_lengths.max()).unsqueeze(0).expand(input_lengths.shape[0], -1).type_as(input_lengths)
+        text_mask = torch.gt(mask+1, input_lengths.unsqueeze(1)).to(tokens.device) 
+
+        bert_dur = self.plbert(tokens, (~text_mask).int())
+        s_pred = self.sampler(noise = self.noise,
+                        embedding=bert_dur[0].unsqueeze(0),
+                        num_steps=diffusion_steps,
+                        embedding_scale=embedding_scale).squeeze(0)
+        return s_pred
+    
+
+    def predict_style_multi(self, audio_prompt_path, tokens, alpha=0, beta=0, embedding_scale=1.0, diffusion_steps=10):
+        tokens = tokens.unsqueeze(0)
+        input_lengths = tokens.new_full((tokens.shape[0],), tokens.shape[1], dtype=torch.long)
+        mask = torch.arange(input_lengths.max()).unsqueeze(0).expand(input_lengths.shape[0], -1).type_as(input_lengths)
+        text_mask = torch.gt(mask+1, input_lengths.unsqueeze(1)).to(tokens.device) 
+
+        voice_features = self.extract_voice_features(audio_prompt_path)
+        
+        bert_dur = self.plbert(tokens, (~text_mask).int())
+        s_pred = self.sampler(noise = self.noise,
+                        embedding=bert_dur,
+                        embedding_scale=embedding_scale,
+                        features=voice_features,
+                        num_steps=diffusion_steps).squeeze(1)
+        
+        s_pred[:, :128] = alpha * s_pred[:, :128] + (1 - alpha)  * voice_features[:, :128]
+        s_pred[:, 128:] = beta * s_pred[:, 128:] + (1 - beta)  * voice_features[:, 128:]
+        return s_pred
+    
+    def forward(self, tokens, speed = 1.0, s_prev=torch.zeros(1,256)):
         s_prev = s_prev.to(self.device)
         tokens = tokens.to(self.device)
         tokens = torch.cat([torch.LongTensor([0]).to(self.device),tokens], axis=0)
         tokens = tokens.unsqueeze(0)
         with torch.no_grad():
-            if self.noise is None or s_prev[0][0] == 0:
-                self.noise = torch.randn(1,1,256).to(self.device)
             
             input_lengths = tokens.new_full((tokens.shape[0],), tokens.shape[1], dtype=torch.long)
             
@@ -656,31 +687,13 @@ class StyleTTS2(nn.Module):
             bert_dur = self.plbert(tokens, (~text_mask).int())
             d_en = self.plbert_encoder(bert_dur).transpose(2, 1)
 
-            if voice is not None:
-                s_pred = self.sampler(noise = self.noise,
-                                embedding=bert_dur,
-                                embedding_scale=embedding_scale,
-                                features=voice, # reference from the same speaker as the embedding
-                                num_steps=diffusion_steps).squeeze(1)
-            else:
-                s_pred = self.sampler(noise = self.noise,
-                                      embedding=bert_dur[0].unsqueeze(0),
-                                      num_steps=diffusion_steps,
-                                      embedding_scale=embedding_scale).squeeze(0)
             
+            s = s_prev[:, 128:]
+            ref = s_prev[:, :128]
             
-            is_not_empty = (s_prev.abs().sum() > 0).float()
-            s_pred = is_not_empty * (alpha * s_prev + (1 - alpha) * s_pred) + (1 - is_not_empty) * s_pred
-            
-            s = s_pred[:, 128:]
-            ref = s_pred[:, :128]
-            
-            if voice is not None:
-                ref = alpha * ref + (1 - alpha)  * voice[:, :128]
-                s = beta * s + (1 - beta)  * voice[:, 128:]
-
             
             d = self.predictor.text_encoder(d_en, s, input_lengths, text_mask)            
+            self.predictor.lstm.flatten_parameters()
             x, _ = self.predictor.lstm(d)
             
             duration = self.predictor.duration_proj(x)
@@ -690,7 +703,7 @@ class StyleTTS2(nn.Module):
             pred_dur = torch.round(duration.squeeze()).clamp(min=1)
 
                     
-            if voice is not None:
+            if self.config.model_params.decoder.type == 'hifigan':
                 pred_dur[0] = 30
 
 
@@ -715,6 +728,6 @@ class StyleTTS2(nn.Module):
 
             
             out = self.decoder(asr, F0_pred, N_pred, ref.squeeze().unsqueeze(0))
-            if voice is not None:
+            if self.config.model_params.decoder.type == 'hifigan':
                 out = out[:,:, 14500:]
-            return out.squeeze(), s_pred
+            return out.squeeze()

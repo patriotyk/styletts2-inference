@@ -10,13 +10,15 @@ global_phonemizer = phonemizer.backend.EspeakBackend(language='en-us', preserve_
 from styletts2_inference.models import StyleTTS2
 
 model = StyleTTS2(hf_path='patriotyk/StyleTTS2-LibriTTS', device='cpu')
-voice = model.compute_style('prompt.wav')
 
 text = 'Hello, how are you?'
 ps = global_phonemizer.phonemize([text])
 ps = ' '.join(word_tokenize(ps[0]))
+tokens = model.tokenizer.encode(ps)
 
-wav, _ = model(model.tokenizer.encode(ps), voice=voice)
+style = model.predict_style_multi('prompt.wav', tokens)
+
+wav = model(tokens, s_prev=style)
 soundfile.write('gennnerated.wav', wav.cpu().numpy(), 24000)
 
 ```
@@ -43,20 +45,15 @@ ps = ' '.join(word_tokenize(ps[0]))
 
 styletts2_session = onnxruntime.InferenceSession("styletts.onnx")
 tokenizer = StyleTTS2Tokenizer(hf_path='patriotyk/StyleTTS2-LJSpeech')
+tokens = tokenizer.encode(ps)
 
-
-wav, _ = styletts2_session.run(None, {'tokens': tokenizer.encode(ps).numpy(),
-                                #'voice': model.compute_style('prompt.wav').numpy(),
+wav, _ = styletts2_session.run(None, {'tokens': tokens.numpy(),
                                 'speed': [1.0],
-                                'alpha': [0.1],
-                                #'beta': [0.0],
-                                'embedding_scale': [2.0],
-                                'diffusion_steps': [5],
-                                's_prev': numpy.zeros([1,256], dtype= numpy.float32)
+                                's_prev': model.predict_style_single(tokens)
                                 })
 soundfile.write('gennnerated_onnx.wav', wav, 24000)
 
 
 ```
 
-For multispeaker, you have to generate `voice` vector from audio file and pass it to onnx session. You can do it using pytorch model using method `compute_style`. In the future I will improve this somehow.
+For multispeaker, you have to generate `style` vector from audio file and pass it to onnx session. You can do it using pytorch model using method `predict_style_multi` or `predict_style_single`.
