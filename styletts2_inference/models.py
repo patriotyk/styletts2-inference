@@ -486,7 +486,7 @@ class StyleTTS2(nn.Module):
             weights_path = hf_hub_download(repo_id=hf_path, filename="pytorch_model.bin")
             config_path = hf_hub_download(repo_id=hf_path, filename="config.yml")
 
-        self.config = recursive_munch(yaml.safe_load(open(config_path)))
+        self.config = recursive_munch(yaml.safe_load(open(config_path, encoding='utf-8')))
         self.tokenizer = StyleTTS2Tokenizer(vocab=self.config.model_params.vocab)
         self.weights = torch.load(weights_path, map_location='cpu', weights_only=True)
         if 'net' in self.weights:
