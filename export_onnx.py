@@ -1,5 +1,6 @@
 import torch
 import argparse
+import onnx
 from pathlib import Path
 
 from styletts2_inference.models import StyleTTS2
@@ -34,7 +35,15 @@ def export(args):
                                 'output_wav':{0: "seq_length"}
                             }
                     )
-
+    
+    onnx_model = onnx.load('styletts.onnx')
+    for node in onnx_model.graph.node:
+        if node.op_type == "Transpose":
+            if node.name == "/text_encoder_1/Transpose_7" or node.name == "/text_encoder_1/Transpose_20" or node.name == "/text_encoder_1/Transpose_14":  
+                perm = list(node.attribute[0].ints)  
+                perm = [2 if i == -1 else i for i in perm]  
+                node.attribute[0].ints[:] = perm  
+    onnx.save(onnx_model, "styletts.onnx")
     print('Exported!!!')
 
 
