@@ -444,16 +444,6 @@ class Decoder(nn.Module):
 
         
     def forward(self, asr, F0_curve, N, s):
-        if self.training:
-            downlist = [0, 3, 7]
-            F0_down = downlist[random.randint(0, 2)]
-            downlist = [0, 3, 7, 15]
-            N_down = downlist[random.randint(0, 3)]
-            if F0_down:
-                F0_curve = nn.functional.conv1d(F0_curve.unsqueeze(1), torch.ones(1, 1, F0_down).to('cuda'), padding=F0_down//2).squeeze(1) / F0_down
-            if N_down:
-                N = nn.functional.conv1d(N.unsqueeze(1), torch.ones(1, 1, N_down).to('cuda'), padding=N_down//2).squeeze(1)  / N_down
-
         
         F0 = self.F0_conv(F0_curve.unsqueeze(1))
         N = self.N_conv(N.unsqueeze(1))
