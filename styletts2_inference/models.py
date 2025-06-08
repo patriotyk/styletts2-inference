@@ -505,7 +505,7 @@ class StyleTTS2(nn.Module):
         params = self.config.model_params
         if params.decoder.type == "istftnet":
             from .Modules.istftnet import Decoder
-            self.add_module('decoder', Decoder(dim_in=params.hidden_dim, style_dim=params.style_dim, dim_out=params.n_mels,
+            self.add_module('decoder', Decoder(dim_in=params.hidden_dim, style_dim=params.style_dim,
                     resblock_kernel_sizes = params.decoder.resblock_kernel_sizes,
                     upsample_rates = params.decoder.upsample_rates,
                     upsample_initial_channel=params.decoder.upsample_initial_channel,
@@ -514,7 +514,7 @@ class StyleTTS2(nn.Module):
                     gen_istft_n_fft=params.decoder.gen_istft_n_fft, gen_istft_hop_size=params.decoder.gen_istft_hop_size))
         else:
             from .Modules.hifigan import Decoder
-            self.add_module('decoder', Decoder(dim_in=params.hidden_dim, style_dim=params.style_dim, dim_out=params.n_mels,
+            self.add_module('decoder', Decoder(dim_in=params.hidden_dim, style_dim=params.style_dim,
                     resblock_kernel_sizes = params.decoder.resblock_kernel_sizes,
                     upsample_rates = params.decoder.upsample_rates,
                     upsample_initial_channel=params.decoder.upsample_initial_channel,
