@@ -231,8 +231,8 @@ class SineGen(torch.nn.Module):
                  voiced_threshold=0,
                  flag_for_pulse=False):
         super(SineGen, self).__init__()
-        self.sine_amp = sine_amp
-        self.noise_std = noise_std
+        self.register_buffer("sine_amp", torch.tensor(sine_amp))
+        self.register_buffer("noise_std", torch.tensor(noise_std))
         self.harmonic_num = harmonic_num
         self.dim = self.harmonic_num + 1
         self.sampling_rate = samp_rate
@@ -242,7 +242,7 @@ class SineGen(torch.nn.Module):
 
     def _f02uv(self, f0):
         # generate uv signal
-        uv = (f0 > self.voiced_threshold).type(torch.float32)
+        uv = (f0 > self.voiced_threshold).type(f0.dtype)
         return uv
 
     def _f02sine(self, f0_values):
@@ -324,8 +324,8 @@ class SineGen(torch.nn.Module):
         output sine_tensor: tensor(batchsize=1, length, dim)
         output uv: tensor(batchsize=1, length, 1)
         """
-        f0_buf = torch.zeros(f0.shape[0], f0.shape[1], self.dim,
-                             device=f0.device)
+        # f0_buf = torch.zeros(f0.shape[0], f0.shape[1], self.dim,
+        #                      device=f0.device)
         # fundamental component
         fn = torch.multiply(f0, torch.FloatTensor([[range(1, self.harmonic_num + 2)]]).to(f0.device))
 
@@ -392,10 +392,9 @@ class SourceModuleHnNSF(torch.nn.Module):
         # source for harmonic branch
         with torch.no_grad():
             sine_wavs, uv, _ = self.l_sin_gen(x)
-        sine_merge = self.l_tanh(self.l_linear(sine_wavs))
-
+        sine_merge = self.l_tanh(self.l_linear(sine_wavs.to(dtype=x.dtype)))
         # source for noise branch, in the same shape as uv
-        noise = torch.randn_like(uv) * self.sine_amp / 3
+        noise = torch.randn_like(uv, dtype=x.dtype) * self.sine_amp / 3
         return sine_merge, noise, uv
 def padDiff(x):
     return F.pad(F.pad(x, (0,0,-1,1), 'constant', 0) - x, (0,0,0,-1), 'constant', 0)
@@ -455,7 +454,7 @@ class Generator(torch.nn.Module):
             har_source, noi_source, uv = self.m_source(f0)
             har_source = har_source.transpose(1, 2).squeeze(1)
             har_spec, har_phase = self.stft.transform(har_source)
-            har = torch.cat([har_spec, har_phase], dim=1)
+            har = torch.cat([har_spec, har_phase], dim=1).to(dtype=f0.dtype)
         
         for i in range(self.num_upsamples):
             x = F.leaky_relu(x, LRELU_SLOPE)
@@ -476,8 +475,8 @@ class Generator(torch.nn.Module):
             x = xs / self.num_kernels
         x = F.leaky_relu(x)
         x = self.conv_post(x)
-        spec = torch.exp(x[:,:self.post_n_fft // 2 + 1, :])
-        phase = torch.sin(x[:, self.post_n_fft // 2 + 1:, :])
+        spec = torch.exp(x[:,:self.post_n_fft // 2 + 1, :]).float()
+        phase = torch.sin(x[:, self.post_n_fft // 2 + 1:, :]).float()
         return self.stft.inverse(spec, phase)
     
     def fw_phase(self, x, s):

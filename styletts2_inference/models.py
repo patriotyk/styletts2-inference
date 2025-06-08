@@ -391,12 +391,14 @@ class DurationEncoder(nn.Module):
         super().__init__()
         self.lstms = nn.ModuleList()
         for _ in range(nlayers):
-            self.lstms.append(nn.LSTM(d_model + sty_dim, 
+            lstm = nn.LSTM(d_model + sty_dim, 
                                  d_model // 2, 
                                  num_layers=1, 
                                  batch_first=True, 
                                  bidirectional=True, 
-                                 dropout=dropout))
+                                 dropout=dropout)
+            lstm.flatten_parameters()
+            self.lstms.append(lstm)
             self.lstms.append(AdaLayerNorm(sty_dim, d_model))
         
         
@@ -426,14 +428,14 @@ class DurationEncoder(nn.Module):
                 x = x.transpose(2, 1)
                 x = nn.utils.rnn.pack_padded_sequence(
                     x, input_lengths, batch_first=True, enforce_sorted=False)
-                block.flatten_parameters()
                 x, _ = block(x)
+                
                 x, _ = nn.utils.rnn.pad_packed_sequence(
                     x, batch_first=True)
-                x = F.dropout(x, p=self.dropout, training=self.training)
+                #x = F.dropout(x, p=self.dropout, training=self.training)
                 x = x.transpose(2, 1)
                 
-                x_pad = torch.zeros([x.shape[0], x.shape[1], m.shape[-1]])
+                x_pad = torch.zeros([x.shape[0], x.shape[1], m.shape[-1]], dtype=x.dtype)
 
                 x_pad[:, :, :x.shape[-1]] = x
                 x = x_pad.to(x.device)
@@ -671,6 +673,7 @@ class StyleTTS2(nn.Module):
         return s_pred
     
     def forward(self, tokens, speed = 1.0, s_prev=torch.zeros(1,256)):
+        dtype = next(self.parameters()).dtype
         s_prev = s_prev.to(self.device)
         tokens = tokens.to(self.device)
         tokens = torch.cat([torch.LongTensor([0]).to(self.device),tokens], axis=0)
@@ -692,8 +695,7 @@ class StyleTTS2(nn.Module):
             ref = s_prev[:, :128]
             
             
-            d = self.predictor.text_encoder(d_en, s, input_lengths, text_mask)            
-            self.predictor.lstm.flatten_parameters()
+            d = self.predictor.text_encoder(d_en.to(dtype=dtype), s.to(dtype=dtype), input_lengths, text_mask)            
             x, _ = self.predictor.lstm(d)
             
             duration = self.predictor.duration_proj(x)
@@ -720,14 +722,13 @@ class StyleTTS2(nn.Module):
                         break
 
             # encode prosody
-            en = (d.transpose(2, 1) @ pred_aln_trg.unsqueeze(0).to(self.device))
+            en = (d.transpose(2, 1) @ pred_aln_trg.unsqueeze(0).to(self.device, dtype=dtype))
+
+            F0_pred, N_pred = self.predictor.F0Ntrain(en, s.to(dtype=dtype))
+            asr = (t_en @ pred_aln_trg.unsqueeze(0).to(self.device)).to(dtype=dtype)
 
             
-            F0_pred, N_pred = self.predictor.F0Ntrain(en, s)
-            asr = (t_en @ pred_aln_trg.unsqueeze(0).to(self.device))
-
-            
-            out = self.decoder(asr, F0_pred, N_pred, ref.squeeze().unsqueeze(0))
+            out = self.decoder(asr, F0_pred, N_pred, ref.squeeze().unsqueeze(0).to(dtype=dtype))
             if self.config.model_params.decoder.type == 'hifigan':
                 out = out[:,:, 14500:]
             return out.squeeze()
